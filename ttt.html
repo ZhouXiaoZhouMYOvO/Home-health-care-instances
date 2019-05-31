@@ -1,0 +1,240 @@
+#include<iostream>
+#include<stdio.h>
+#include<vector>
+#include<string>
+#include<queue>
+using namespace std;
+
+//const int PIPESIZE = 8;
+
+struct PCB {
+	char n;
+	int name;
+	string  statu;
+	int  time;
+	bool operator < (const PCB &a) const { return time > a.time; };
+};  /* times of execution */
+
+struct pipetype {
+	char type;
+	int  writeptr;
+	int  readptr;
+	struct PCB *pointp;     /* write wait point */
+	struct PCB *pointc;
+}; /* read wait point  */
+
+int ppipe[8];
+pipetype tb;
+
+PCB P;
+PCB C;
+priority_queue<PCB> p_temp;
+priority_queue<PCB> p_ready;
+priority_queue<PCB> c_temp;
+priority_queue<PCB> c_ready;
+queue<PCB> block;
+queue<PCB> t_block;
+
+int sum = 0;//产品总数
+
+//int mutex = 1;
+
+void p_run(PCB P)
+{
+	
+	if (!c_ready.empty())        //有消费者在等待
+	{
+		cout << "give the producer" << P.name << " to consumer" << c_ready.top().name << endl;
+		//change();
+		c_ready.pop();
+		tb.writeptr = 0;
+	}
+	else if (sum < 8)
+	{
+		cout << "producer" << P.name << "is running" << endl;
+		ppipe[tb.writeptr] = P.name;
+		tb.writeptr = (tb.writeptr + 1) % 8;
+		sum++;
+	}
+	else if (sum >= 8)
+	{
+		P.statu = "READY";
+		P.time++;
+		p_ready.push(P);
+		sum++;    //不应该在此处加一吧？
+	}
+}
+
+void c_run(PCB C)
+{
+	if (sum <= 0)
+	{
+		cout << "consumer" << C.name << " is waiting" << endl;
+		C.statu = "READY";
+		C.time++;
+		c_ready.push(C);
+		tb.readptr=0;
+	}
+	else if (sum > 8)
+	{
+		cout << "give the producer" << ppipe[tb.readptr] << " to consumer" << C.name << endl;
+		sum--;
+		//change();
+		ppipe[tb.readptr] = p_ready.top().name;
+		tb.writeptr = (tb.writeptr + 1) % 8;
+		p_ready.pop();
+		tb.readptr = (tb.readptr + 1) % 8;
+	}
+	else
+	{
+		cout << "give the producer" << ppipe[tb.readptr] << " to consumer" << C.name << endl;
+		sum--;
+		ppipe[tb.readptr] = '\0';
+		//change();
+		tb.readptr = (tb.readptr + 1) % 8;
+	}
+	return;
+}
+
+void brn()
+{
+	t_block = block;
+	if (!t_block.empty())
+	{
+		printf("\n the block waiting queue: ");
+		while (!t_block.empty())
+		{
+			// int aaa=c_temp.top();
+
+			printf("%2d %c |", t_block.front().name,t_block.front().n);
+			t_block.pop();
+		}
+		printf("\n");
+	}
+}
+void prn()
+{
+	int i;
+	printf("\n         "); for (i = 0; i<8; i++) printf("------ ");
+	printf("\n        |");
+	for (i = 0; i<8; i++)
+		if (ppipe[i] != '\0') printf("  %2d  |", ppipe[i]);
+		else printf("      |");
+		printf("\n         "); for (i = 0; i<8; i++) printf("------ ");
+		printf("\nwriteptr = %d, readptr = %d\n  ", tb.writeptr, tb.readptr);
+		if (sum>8)
+		{
+			p_temp = p_ready;
+			printf("\n the producer waiting queue: ");
+			while (!p_temp.empty())
+			{
+				printf("%2d |", p_temp.top().name);    
+				p_temp.pop();
+			}
+			printf("\n");
+		}
+		else if (!c_ready.empty())
+		{
+			c_temp = c_ready;
+			printf("\n the consumer waiting queue: ");
+			while (!c_temp.empty())
+			{
+                               // int aaa=c_temp.top();
+                                
+				printf("%2d |",c_temp.top().name);
+				c_temp.pop();
+			}
+			printf("\n");
+		}
+}
+
+int main()
+{
+	tb.type = 'c';
+	tb.writeptr = 0;
+	tb.readptr = 0;
+	tb.pointp = tb.pointc = NULL;      //初始化
+	printf("press 'e' end the program\n");
+	printf("press 'p' run to producer press 'c' run to consumer\n");
+	P.n = 'P';
+	C.n = 'C';
+	P.name = C.name = 1;
+	int mutex = 1;
+	int flag = 1;
+	while (1)
+	{
+		
+		char press;
+		scanf_s("%c", &press);
+		if (press == 'e') break;
+		else if (press == 'p')
+		{
+			mutex--;
+			if (mutex >= 0||flag==0)
+			{
+				
+				p_run(P);
+				P.name = (P.name + 1) % 100;
+				prn();
+				flag = 1;
+			}
+			else
+			{
+				cout << "please over last one" << endl;
+				block.push(P);
+				P.name = (P.name + 1) % 100;
+				brn();
+			}
+
+		}
+		else if (press == 'c')
+		{
+			mutex--;
+			if (mutex >= 0 || flag == 0)
+			{
+				//cout << mutex << endl;
+				//cout << flag << endl;
+				c_run(P);
+				C.name = (C.name + 1) % 100;
+				//cout << C.name << endl;
+				mutex++;
+
+				prn();
+				flag = 1;
+			}
+			else
+			{
+				cout << "please over last one" << endl;
+				block.push(C);
+				C.name = (C.name + 1) % 100;
+				brn();
+			}
+		}
+		else if (press == 'o')
+		{
+			mutex++;
+			if (block.empty())
+			{
+				cout << "ok!" << endl;
+				flag = 0;
+				continue;
+			}
+			PCB T;
+			T = block.front();
+			block.pop();
+			if (T.n == 'C')
+			{
+				c_run(T);
+				prn();
+
+			}
+			else
+			{
+				p_run(T);
+				prn();
+			}
+			mutex--;
+		}
+		
+	}
+}
